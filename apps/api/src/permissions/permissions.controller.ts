@@ -10,10 +10,7 @@ import {
 } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CreatePermissionDto,
-  UpdatePermissionDto,
-} from '@universal-auth-idp/auth-core';
+import { CreatePermissionDto, UpdatePermissionDto } from './dto';
 
 @Controller('tenants/:tenantId/permissions')
 @UseGuards(JwtAuthGuard)

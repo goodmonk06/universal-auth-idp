@@ -10,10 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CreateApplicationDto,
-  UpdateApplicationDto,
-} from '@universal-auth-idp/auth-core';
+import { CreateApplicationDto, UpdateApplicationDto } from './dto';
 
 @Controller('tenants/:tenantId/applications')
 @UseGuards(JwtAuthGuard)

@@ -11,11 +11,7 @@ import {
 import { RolesService } from './roles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import {
-  CreateRoleDto,
-  UpdateRoleDto,
-  AssignRoleDto,
-} from '@universal-auth-idp/auth-core';
+import { CreateRoleDto, UpdateRoleDto, AssignRoleDto } from './dto';
 
 @Controller('tenants/:tenantId/roles')
 @UseGuards(JwtAuthGuard)

@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CreateTenantDto, UpdateTenantDto } from '@universal-auth-idp/auth-core';
+import { CreateTenantDto, UpdateTenantDto } from './dto';
 
 @Controller('tenants')
 @UseGuards(JwtAuthGuard)

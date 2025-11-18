@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: auth-idp-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: universal_auth_idp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth-idp-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: auth-idp-api
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/universal_auth_idp?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-your-super-secret-jwt-key-change-this}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION:-15m}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION:-7d}
+      - MAGIC_LINK_SECRET=${MAGIC_LINK_SECRET:-your-magic-link-secret}
+      - MAGIC_LINK_EXPIRATION=${MAGIC_LINK_EXPIRATION:-15m}
+      - API_PORT=3000
+      - API_URL=http://localhost:3000
+      - ADMIN_URL=http://localhost:3001
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_CALLBACK_URL=${GOOGLE_CALLBACK_URL:-http://localhost:3000/api/auth/google/callback}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main.js"
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    container_name: auth-idp-admin
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:3000/api
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

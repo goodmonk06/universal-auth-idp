@@ -1,147 +1,291 @@
 # Universal Auth IDP
 
-A multi-tenant, multi-application Identity Provider (IDP) built with NestJS, Prisma, PostgreSQL, and Redis. This project provides a complete authentication and authorization solution that can serve multiple applications across different tenants.
+A production-ready, multi-tenant Identity Provider (IDP) with comprehensive RBAC, built for modern applications.
 
-## Features
+## Overview
 
-- **Multi-Tenant Architecture**: Isolated user spaces for different organizations
-- **Multiple Authentication Methods**:
-  - Email + Password
-  - Magic Link (passwordless)
-  - Social Login (Google OAuth, extensible for others)
-- **JWT-based Authentication**: Access tokens + refresh tokens with rotation
-- **Role-Based Access Control (RBAC)**: Flexible roles and permissions per tenant
-- **Application Management**: Register client applications with OAuth-style credentials
-- **Token Introspection**: Validate tokens from microservices
-- **Admin Dashboard**: Next.js UI for managing tenants, users, roles, and applications
+Universal Auth IDP is a centralized authentication and authorization solution that supports multiple tenants and applications. It provides a complete auth infrastructure so you can focus on building your applications instead of reinventing auth.
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Client Applications                      │
-│  (Your apps that need authentication)                       │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             │ JWT Token Validation
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│              Universal Auth IDP (This Repo)                  │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   Auth API   │  │  Admin UI    │  │   Database   │     │
-│  │   (NestJS)   │  │  (Next.js)   │  │ (PostgreSQL) │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                              │
-│  ┌──────────────┐                                           │
-│  │    Redis     │  (Session & Cache)                       │
-│  └──────────────┘                                           │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Key Components
-
-1. **API (NestJS)**: Core authentication and authorization service
-   - `/api/auth/*` - Authentication endpoints
-   - `/api/oauth/introspect` - Token validation for client apps
-   - `/api/tenants/*` - Tenant management
-   - `/api/tenants/:id/users` - User management
-   - `/api/tenants/:id/roles` - Role management
-   - `/api/tenants/:id/permissions` - Permission management
-   - `/api/tenants/:id/applications` - Application management
-
-2. **Admin UI (Next.js)**: Dashboard for managing the IDP
-   - Login page
-   - Tenant management
-   - User management per tenant
-   - Role and permission management
-   - Application registration
-
-3. **Shared Core Package**: Common types and utilities used across the monorepo
+**Key Features:**
+- 🏢 Multi-tenant architecture with complete isolation
+- 🔐 Multiple authentication methods (Email/Password, Magic Link, Social OAuth)
+- 👥 Flexible Role-Based Access Control (RBAC)
+- 🔑 JWT tokens with automatic refresh token rotation
+- 📱 Application registration and OAuth-style client credentials
+- 🎯 Token introspection for microservices
+- 🖥️ Admin dashboard for management
+- 🐳 Docker-ready with compose files
+- ✅ Type-safe APIs end-to-end
 
 ## Tech Stack
 
-- **Backend**: NestJS + TypeScript
-- **Database**: PostgreSQL (via Prisma ORM)
-- **Cache/Sessions**: Redis
-- **Frontend**: Next.js 14 + React + Tailwind CSS
-- **Authentication**: JWT (jsonwebtoken)
-- **Social Auth**: Passport.js (Google OAuth)
+| Layer | Technology |
+|-------|------------|
+| **API** | NestJS + TypeScript |
+| **Database** | PostgreSQL + Prisma ORM |
+| **Cache/Sessions** | Redis |
+| **Admin UI** | Next.js 14 + React + Tailwind CSS |
+| **Auth** | JWT + Passport.js |
+| **Testing** | Vitest + Jest |
+| **Deployment** | Docker + Docker Compose |
+
+## Domain Model Summary
+
+```
+Tenant
+  ├── Users (email/password + social logins)
+  ├── Roles (Admin, Editor, Viewer, etc.)
+  ├── Permissions (users:read, content:write, etc.)
+  └── Applications (registered client apps)
+
+User ──→ Roles ──→ Permissions
+```
+
+**Core Entities:**
+- **Tenant**: Organization/workspace with isolated data
+- **User**: End users with email/password or social login
+- **Role**: Named role (e.g., "Admin") with assigned permissions
+- **Permission**: Granular permission (e.g., "users:write")
+- **Application**: Registered client app with OAuth credentials
+- **Session**: Refresh token storage with expiration
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
-- PostgreSQL
-- Redis
-- npm or yarn
+- Node.js 18+ and npm 9+
+- Docker and Docker Compose (recommended)
+- PostgreSQL 14+ (if not using Docker)
+- Redis 7+ (if not using Docker)
 
-### Installation
+### Option 1: Quick Start with Docker (Recommended)
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd universal-auth-idp
-   ```
-
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` and configure:
-   - Database connection (`DATABASE_URL`)
-   - Redis connection (`REDIS_URL`)
-   - JWT secrets
-   - Google OAuth credentials (optional)
-   - Email service for magic links (optional)
-
-4. **Set up the database**:
-   ```bash
-   npm run prisma:migrate
-   npm run prisma:generate
-   ```
-
-5. **Seed the database** (creates default tenant and admin user):
-   ```bash
-   cd apps/api
-   npm run prisma:seed
-   ```
-
-   This will create:
-   - A default tenant with slug `default`
-   - An admin user (check console output for credentials)
-   - Sample permissions and roles
-   - A sample application with client credentials
-
-### Running the Application
-
-**Development mode** (runs both API and Admin UI):
+**1. Clone and setup:**
 ```bash
+git clone <repository-url>
+cd universal-auth-idp
+cp .env.example .env
+```
+
+**2. Start everything with Docker:**
+```bash
+# Start databases, API, and Admin UI
+npm run docker:up
+
+# View logs
+npm run docker:logs
+
+# Stop everything
+npm run docker:down
+```
+
+The services will be available at:
+- API: http://localhost:3000
+- Admin UI: http://localhost:3001
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
+
+### Option 2: Local Development
+
+**1. Install dependencies:**
+```bash
+npm install
+```
+
+**2. Start databases only:**
+```bash
+npm run dev:db
+```
+
+**3. Configure environment:**
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+**4. Run database migrations:**
+```bash
+npm run db:push
+npm run prisma:generate
+```
+
+**5. Seed the database:**
+```bash
+npm run db:seed
+```
+
+**6. Start development servers:**
+```bash
+# Start both API and Admin UI
 npm run dev
+
+# Or start them separately:
+npm run dev:api
+npm run dev:admin
 ```
 
-- API will be available at: http://localhost:3000
-- Admin UI will be available at: http://localhost:3001
+### Demo Credentials
 
-**Production build**:
+After seeding, you can log in with:
+
+| Role | Email | Password |
+|------|-------|----------|
+| **Admin** | admin@example.com | admin123 |
+| **Editor** | editor@example.com | editor123 |
+| **Viewer** | viewer@example.com | viewer123 |
+
+## Example Flow: Complete Vertical Slice
+
+This demonstrates a complete end-to-end flow through the IDP:
+
+### 1. Create a Tenant
+
 ```bash
-npm run build
-npm run start
+POST /api/tenants
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "name": "Acme Corp",
+  "slug": "acme-corp"
+}
 ```
 
-### Default Credentials
+### 2. Register a User
 
-After running the seed script, you can log in to the admin UI with:
+```bash
+POST /api/auth/signup
+Content-Type: application/json
 
-- **Email**: `admin@example.com` (or value from `PLATFORM_ADMIN_EMAIL` in .env)
-- **Password**: `admin123` (or value from `PLATFORM_ADMIN_PASSWORD` in .env)
+{
+  "email": "john@acme.com",
+  "password": "securePass123",
+  "tenantSlug": "acme-corp"
+}
+
+# Returns:
+{
+  "accessToken": "eyJhbGc...",
+  "refreshToken": "eyJhbGc...",
+  "expiresIn": 900
+}
+```
+
+### 3. Login
+
+```bash
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "email": "john@acme.com",
+  "password": "securePass123",
+  "tenantSlug": "acme-corp"
+}
+```
+
+### 4. Create a Role
+
+```bash
+POST /api/tenants/{tenantId}/roles
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "name": "Content Manager",
+  "description": "Can manage content",
+  "permissionIds": ["perm-id-1", "perm-id-2"]
+}
+```
+
+### 5. Assign Role to User
+
+```bash
+POST /api/tenants/{tenantId}/roles/assign
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "userId": "user-id",
+  "roleId": "role-id"
+}
+```
+
+### 6. Verify Permissions
+
+```bash
+GET /api/auth/me
+Authorization: Bearer <user-token>
+
+# Returns:
+{
+  "userId": "...",
+  "email": "john@acme.com",
+  "tenantId": "...",
+  "roleKeys": ["Content Manager"],
+  "permissions": ["content:read", "content:write"]
+}
+```
+
+### 7. Register an Application
+
+```bash
+POST /api/tenants/{tenantId}/applications
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+
+{
+  "name": "My Web App",
+  "redirectUris": ["http://localhost:4000/callback"]
+}
+
+# Returns (save these!):
+{
+  "clientId": "abc123...",
+  "clientSecret": "secret123...",
+  "redirectUris": ["http://localhost:4000/callback"]
+}
+```
+
+### 8. Introspect Token (from your microservice)
+
+```bash
+POST /api/oauth/introspect
+Content-Type: application/json
+
+{
+  "token": "eyJhbGc..."
+}
+
+# Returns:
+{
+  "active": true,
+  "userId": "...",
+  "tenantId": "...",
+  "email": "john@acme.com",
+  "roleKeys": ["Content Manager"],
+  "permissions": ["content:read", "content:write"],
+  "exp": 1234567890
+}
+```
+
+## Development Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start API and Admin UI in dev mode |
+| `npm run dev:db` | Start PostgreSQL and Redis with Docker |
+| `npm run build` | Build all workspaces |
+| `npm run start` | Start production servers |
+| `npm test` | Run all tests |
+| `npm run lint` | Lint all workspaces |
+| `npm run db:migrate` | Run database migrations |
+| `npm run db:push` | Push schema changes to DB |
+| `npm run db:seed` | Seed database with demo data |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run docker:up` | Start all services with Docker |
+| `npm run docker:down` | Stop Docker services |
+| `npm run docker:build` | Rebuild Docker images |
 
 ## Project Structure
 
@@ -154,20 +298,23 @@ universal-auth-idp/
 │   │   │   └── seed.ts         # Database seeder
 │   │   └── src/
 │   │       ├── auth/           # Authentication module
+│   │       │   ├── dto/        # Validation DTOs
+│   │       │   ├── guards/     # Auth guards
+│   │       │   └── strategies/ # Passport strategies
 │   │       ├── tenants/        # Tenant management
 │   │       ├── users/          # User management
 │   │       ├── roles/          # Role management
 │   │       ├── permissions/    # Permission management
 │   │       ├── applications/   # App registration
 │   │       ├── oauth/          # Token introspection
-│   │       ├── prisma/         # Prisma service
-│   │       └── redis/          # Redis service
+│   │       └── common/
+│   │           └── filters/    # Error filters
 │   │
 │   └── admin/                  # Next.js Admin UI
 │       └── src/
 │           ├── app/            # App router pages
 │           ├── components/     # React components
-│           └── lib/            # Utilities (API client)
+│           └── lib/            # API client
 │
 ├── packages/
 │   └── auth-core/              # Shared types & utilities
@@ -175,111 +322,50 @@ universal-auth-idp/
 │           ├── types/          # TypeScript interfaces
 │           └── utils/          # Helper functions
 │
-├── .env.example                # Environment template
-└── package.json                # Root package.json
+├── docker-compose.yml          # Production compose
+├── docker-compose.dev.yml      # Development compose
+└── .env.example                # Environment template
 ```
 
-## Database Schema
+## Testing
 
-The system uses the following main entities:
+### Run Tests
 
-- **Tenant**: Organizations that use the IDP
-- **User**: End users belonging to a tenant
-- **Role**: Named roles within a tenant (e.g., Admin, Editor)
-- **Permission**: Granular permissions (e.g., users:read, users:write)
-- **Application**: Client apps registered with the IDP
-- **Session**: Refresh token storage
-- **MagicLink**: One-time login tokens
-- **IdentityProviderAccount**: Social login connections
+```bash
+# Run all tests
+npm test
 
-## How Client Applications Use This IDP
+# Run API tests
+npm run test:api
 
-### 1. Register Your Application
-
-Use the Admin UI to register your application:
-
-1. Navigate to a tenant
-2. Go to Applications
-3. Create a new application with redirect URIs
-4. Save the `clientId` and `clientSecret` (shown only once!)
-
-### 2. Direct Users to Login
-
-Redirect users to your IDP login flow or integrate the API endpoints:
-
-```javascript
-// Example: Login from your client app
-const response = await fetch('http://localhost:3000/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    email: 'user@example.com',
-    password: 'password123',
-    tenantSlug: 'default',
-  }),
-});
-
-const { accessToken, refreshToken } = await response.json();
-
-// Store tokens securely
-localStorage.setItem('accessToken', accessToken);
-localStorage.setItem('refreshToken', refreshToken);
+# Run tests in watch mode
+cd packages/auth-core && npm run test:watch
 ```
 
-### 3. Validate Tokens in Your Microservices
+### Test Coverage
 
-Your backend services can validate tokens using the introspection endpoint:
+The project includes:
+- **Unit tests** for utilities and services
+- **Integration tests** for critical flows
+- **Type safety** via TypeScript across the stack
 
-```javascript
-// Node.js microservice example
-const axios = require('axios');
+Example test locations:
+- `packages/auth-core/src/utils/index.spec.ts` - Utility functions
+- `apps/api/src/roles/roles.service.spec.ts` - Role service logic
 
-async function validateToken(token) {
-  const response = await axios.post('http://localhost:3000/api/oauth/introspect', {
-    token: token,
-  });
+## Integration Guide
 
-  const { active, userId, tenantId, permissions } = response.data;
+### Validating Tokens in Your Microservice
 
-  if (!active) {
-    throw new Error('Invalid token');
-  }
-
-  return { userId, tenantId, permissions };
-}
-
-// Middleware example (Express.js)
-async function authMiddleware(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
-  }
-
-  try {
-    const user = await validateToken(token);
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-}
-
-app.use(authMiddleware);
-```
-
-### 4. Verify JWT Locally (Alternative to Introspection)
-
-For better performance, you can verify JWTs directly in your services without calling the introspection endpoint:
+**Option 1: JWT Verification (Fast)**
 
 ```javascript
 const jwt = require('jsonwebtoken');
 
-function verifyToken(token, jwtSecret) {
+function verifyToken(token) {
   try {
-    const payload = jwt.verify(token, jwtSecret);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check if it's an access token (not refresh)
     if (payload.type !== 'access') {
       throw new Error('Invalid token type');
     }
@@ -287,8 +373,6 @@ function verifyToken(token, jwtSecret) {
     return {
       userId: payload.sub,
       tenantId: payload.tenantId,
-      email: payload.email,
-      roleKeys: payload.roleKeys,
       permissions: payload.permissions,
     };
   } catch (error) {
@@ -296,217 +380,164 @@ function verifyToken(token, jwtSecret) {
   }
 }
 
-// Usage
-const jwtSecret = process.env.JWT_SECRET; // Same secret as IDP
-const user = verifyToken(accessToken, jwtSecret);
+// Express middleware
+app.use((req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
 
-// Check permissions
-if (!user.permissions.includes('users:write')) {
-  throw new Error('Insufficient permissions');
-}
+  try {
+    req.user = verifyToken(token);
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 ```
 
-### 5. Refresh Tokens
-
-Access tokens are short-lived. Use refresh tokens to get new access tokens:
+**Option 2: Introspection (More Secure)**
 
 ```javascript
-async function refreshAccessToken(refreshToken) {
-  const response = await fetch('http://localhost:3000/api/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+const axios = require('axios');
+
+async function introspectToken(token) {
+  const response = await axios.post('http://localhost:3000/api/oauth/introspect', {
+    token,
   });
 
-  const { accessToken, refreshToken: newRefreshToken } = await response.json();
+  if (!response.data.active) {
+    throw new Error('Token is not active');
+  }
 
-  // Update stored tokens
-  localStorage.setItem('accessToken', accessToken);
-  localStorage.setItem('refreshToken', newRefreshToken);
-
-  return accessToken;
+  return response.data;
 }
+
+// Usage
+app.use(async (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+
+  try {
+    req.user = await introspectToken(token);
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
 ```
 
-## Authentication Flows
-
-### Email + Password Flow
-
-```
-Client App → POST /api/auth/signup (or /login)
-           ← { accessToken, refreshToken }
-```
-
-### Magic Link Flow
-
-```
-Client App → POST /api/auth/magic-link { email }
-           ← { message: "Magic link sent" }
-
-User clicks link → GET /api/auth/magic-link/verify?token=xxx
-                 ← { accessToken, refreshToken }
-```
-
-### Google OAuth Flow
-
-```
-Client App → Redirect to GET /api/auth/google
-           → User authorizes on Google
-           → Redirected to GET /api/auth/google/callback
-           ← { accessToken, refreshToken } (via redirect to client)
-```
-
-## API Endpoints
-
-### Authentication
-
-- `POST /api/auth/signup` - Register new user
-- `POST /api/auth/login` - Login with email/password
-- `POST /api/auth/magic-link` - Request magic link
-- `GET /api/auth/magic-link/verify` - Verify magic link token
-- `GET /api/auth/google` - Initiate Google OAuth
-- `GET /api/auth/google/callback` - Google OAuth callback
-- `POST /api/auth/refresh` - Refresh access token
-- `POST /api/auth/logout` - Logout (invalidate refresh token)
-- `GET /api/auth/me` - Get current user info
-
-### OAuth
-
-- `POST /api/oauth/introspect` - Validate token
-
-### Tenants
-
-- `GET /api/tenants` - List all tenants
-- `POST /api/tenants` - Create tenant
-- `GET /api/tenants/:id` - Get tenant details
-- `PUT /api/tenants/:id` - Update tenant
-- `DELETE /api/tenants/:id` - Delete tenant
-
-### Users
-
-- `GET /api/tenants/:tenantId/users` - List users in tenant
-- `GET /api/tenants/:tenantId/users/:id` - Get user details
-- `PUT /api/tenants/:tenantId/users/:id/active` - Activate/deactivate user
-- `DELETE /api/tenants/:tenantId/users/:id` - Delete user
-
-### Roles
-
-- `GET /api/tenants/:tenantId/roles` - List roles
-- `POST /api/tenants/:tenantId/roles` - Create role
-- `PUT /api/tenants/:tenantId/roles/:id` - Update role
-- `DELETE /api/tenants/:tenantId/roles/:id` - Delete role
-- `POST /api/tenants/:tenantId/roles/assign` - Assign role to user
-
-### Permissions
-
-- `GET /api/tenants/:tenantId/permissions` - List permissions
-- `POST /api/tenants/:tenantId/permissions` - Create permission
-- `PUT /api/tenants/:tenantId/permissions/:id` - Update permission
-- `DELETE /api/tenants/:tenantId/permissions/:id` - Delete permission
-
-### Applications
-
-- `GET /api/tenants/:tenantId/applications` - List applications
-- `POST /api/tenants/:tenantId/applications` - Register application
-- `PUT /api/tenants/:tenantId/applications/:id` - Update application
-- `POST /api/tenants/:tenantId/applications/:id/regenerate-secret` - Regenerate client secret
-- `DELETE /api/tenants/:tenantId/applications/:id` - Delete application
-
-## Security Considerations
-
-1. **Secrets**: Always use strong secrets for `JWT_SECRET` and `MAGIC_LINK_SECRET` in production
-2. **HTTPS**: Use HTTPS in production for all communications
-3. **CORS**: Configure CORS properly for your client applications
-4. **Rate Limiting**: The API includes throttling (10 requests per minute by default)
-5. **Password Hashing**: Passwords are hashed using bcrypt with salt rounds of 10
-6. **Token Expiration**: Access tokens expire quickly (15 minutes default), refresh tokens last longer (7 days default)
-7. **Refresh Token Rotation**: Refresh tokens are rotated on each use for better security
-
-## Customization
-
-### Adding New Social Providers
-
-1. Install the Passport strategy: `npm install passport-facebook`
-2. Create a new strategy in `apps/api/src/auth/strategies/`
-3. Add it to the `AuthModule` providers
-4. Create the OAuth flow endpoints in `AuthController`
-5. Update `IdentityProviderAccount` handling in `AuthService`
-
-### Adding New Permissions
-
-Permissions are flexible. Create them via the API or Admin UI:
+### Permission Checking
 
 ```javascript
-POST /api/tenants/:tenantId/permissions
-{
-  "key": "posts:publish",
-  "description": "Publish blog posts"
+function requirePermission(permission) {
+  return (req, res, next) => {
+    if (!req.user.permissions.includes(permission)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    next();
+  };
 }
+
+// Usage
+app.post('/api/posts', requirePermission('content:write'), (req, res) => {
+  // Handler
+});
 ```
 
-Then assign permissions to roles, and roles to users.
+## Security Best Practices
 
-## Troubleshooting
+✅ **Implemented:**
+- Password hashing with bcrypt (10 salt rounds)
+- JWT tokens with short expiration (15 min access, 7 days refresh)
+- Refresh token rotation on each use
+- Input validation with class-validator
+- Centralized error handling
+- CORS configuration
+- Rate limiting (10 req/min per IP)
 
-### Database Connection Issues
+🔒 **Production Recommendations:**
+- Use strong, unique secrets for `JWT_SECRET` and `MAGIC_LINK_SECRET`
+- Enable HTTPS for all communications
+- Configure proper CORS origins
+- Use Redis persistence in production
+- Set up database backups
+- Monitor failed login attempts
+- Implement 2FA for admin accounts
+- Rotate application secrets regularly
 
-- Ensure PostgreSQL is running
-- Check `DATABASE_URL` in `.env`
-- Run `npm run prisma:migrate` to apply migrations
+## Docker Deployment
 
-### Redis Connection Issues
-
-- Ensure Redis is running: `redis-cli ping` should return `PONG`
-- Check `REDIS_URL` in `.env`
-
-### Google OAuth Not Working
-
-- Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`
-- Ensure `GOOGLE_CALLBACK_URL` matches the redirect URI in Google Console
-- Add `http://localhost:3000/api/auth/google/callback` to authorized redirect URIs
-
-## Development
-
-### Running Tests
+### Development
 
 ```bash
-npm run test
+# Start only databases
+npm run dev:db
+
+# Run API and Admin locally
+npm run dev
 ```
 
-### Database Migrations
+### Production
 
-Create a new migration:
 ```bash
-cd apps/api
-npx prisma migrate dev --name your_migration_name
+# Build images
+npm run docker:build
+
+# Start all services
+npm run docker:up
+
+# View logs
+npm run docker:logs
+
+# Stop services
+npm run docker:down
 ```
 
-### Prisma Studio
+### Environment Variables
 
-View and edit data:
-```bash
-npm run prisma:studio
-```
+Copy `.env.example` to `.env` and configure:
+- Database credentials
+- Redis connection
+- JWT secrets
+- OAuth credentials
+- Email service settings
 
-## Production Deployment
+## Future Extensions
 
-1. Set all environment variables properly
-2. Use strong, unique secrets
-3. Configure proper CORS origins
-4. Use HTTPS
-5. Set up database backups
-6. Monitor Redis memory usage
-7. Consider horizontal scaling with load balancers
-8. Set `NODE_ENV=production`
+Potential enhancements for this IDP:
+
+- **Advanced Auth**: WebAuthn/FIDO2 support, SMS OTP
+- **MFA**: Time-based OTP, backup codes
+- **Audit Logs**: Track all authentication and authorization events
+- **Advanced RBAC**: Conditional permissions, attribute-based access control
+- **UI Improvements**: Better admin dashboard, user profile pages
+- **API Rate Limiting**: Per-user/per-tenant rate limits
+- **Webhooks**: Notify external systems of auth events
+- **Session Management**: View and revoke active sessions
+- **Compliance**: GDPR data export, account deletion workflows
+- **Monitoring**: Prometheus metrics, health checks
+- **OIDC Support**: Full OpenID Connect implementation
+- **SAML**: Enterprise SSO integration
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Submit a pull request
 
 ## License
 
 MIT
 
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
 ## Support
 
-For questions or issues, please open a GitHub issue.
+For questions or issues:
+- Open a GitHub issue
+- Check the docs in this README
+- Review the inline code comments
+
+---
+
+Built with ❤️ for developers who need auth without the headache.

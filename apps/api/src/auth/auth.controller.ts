@@ -12,30 +12,25 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
-import {
-  LoginRequest,
-  SignupRequest,
-  MagicLinkRequest,
-  RefreshTokenRequest,
-} from '@universal-auth-idp/auth-core';
 import { Request, Response } from 'express';
+import { SignupDto, LoginDto, MagicLinkDto, RefreshTokenDto } from './dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
-  async signup(@Body() dto: SignupRequest) {
+  async signup(@Body() dto: SignupDto) {
     return this.authService.signup(dto);
   }
 
   @Post('login')
-  async login(@Body() dto: LoginRequest) {
+  async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Post('magic-link')
-  async requestMagicLink(@Body() dto: MagicLinkRequest) {
+  async requestMagicLink(@Body() dto: MagicLinkDto) {
     return this.authService.requestMagicLink(dto);
   }
 
@@ -62,7 +57,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  async refreshToken(@Body() dto: RefreshTokenRequest) {
+  async refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
   }
 
