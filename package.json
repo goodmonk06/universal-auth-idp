@@ -1,0 +1,31 @@
+{
+  "name": "universal-auth-idp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-tenant, multi-application Identity Provider",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:admin\"",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "build": "npm run build --workspaces",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "start": "concurrently \"npm run start:api\" \"npm run start:admin\"",
+    "start:api": "npm run start:prod --workspace=apps/api",
+    "start:admin": "npm run start --workspace=apps/admin",
+    "prisma:migrate": "npm run prisma:migrate --workspace=apps/api",
+    "prisma:studio": "npm run prisma:studio --workspace=apps/api",
+    "prisma:generate": "npm run prisma:generate --workspace=apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
