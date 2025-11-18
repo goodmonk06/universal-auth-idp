@@ -12,10 +12,16 @@ Universal Auth IDP is a centralized authentication and authorization solution th
 - 👥 Flexible Role-Based Access Control (RBAC)
 - 🔑 JWT tokens with automatic refresh token rotation
 - 📱 Application registration and OAuth-style client credentials
+- 🗝️ API Keys for service-to-service authentication
+- 🪝 Webhooks for event-driven integrations
+- 📋 Comprehensive audit logging and security tracking
+- 👤 Rich user profiles with customizable metadata
+- ⚙️ Per-tenant settings and branding
 - 🎯 Token introspection for microservices
 - 🖥️ Admin dashboard for management
 - 🐳 Docker-ready with compose files
 - ✅ Type-safe APIs end-to-end
+- 🔌 Extensible adapter pattern for integrations
 
 ## Tech Stack
 
@@ -44,10 +50,15 @@ User ──→ Roles ──→ Permissions
 **Core Entities:**
 - **Tenant**: Organization/workspace with isolated data
 - **User**: End users with email/password or social login
+- **UserProfile**: Rich user information (name, avatar, bio, metadata)
 - **Role**: Named role (e.g., "Admin") with assigned permissions
 - **Permission**: Granular permission (e.g., "users:write")
 - **Application**: Registered client app with OAuth credentials
+- **ApiKey**: Long-lived service account tokens with scopes
+- **Webhook**: Event subscriptions for external integrations
+- **AuditLog**: Immutable security and activity tracking
 - **Session**: Refresh token storage with expiration
+- **TenantSettings**: Per-tenant configuration and branding
 
 ## Getting Started
 
@@ -507,11 +518,9 @@ Potential enhancements for this IDP:
 
 - **Advanced Auth**: WebAuthn/FIDO2 support, SMS OTP
 - **MFA**: Time-based OTP, backup codes
-- **Audit Logs**: Track all authentication and authorization events
 - **Advanced RBAC**: Conditional permissions, attribute-based access control
 - **UI Improvements**: Better admin dashboard, user profile pages
 - **API Rate Limiting**: Per-user/per-tenant rate limits
-- **Webhooks**: Notify external systems of auth events
 - **Session Management**: View and revoke active sessions
 - **Compliance**: GDPR data export, account deletion workflows
 - **Monitoring**: Prometheus metrics, health checks

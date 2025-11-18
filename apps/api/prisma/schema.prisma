@@ -22,6 +22,10 @@ model Tenant {
   roles        Role[]
   permissions  Permission[]
   sessions     Session[]
+  settings     TenantSettings?
+  apiKeys      ApiKey[]
+  webhooks     Webhook[]
+  auditLogs    AuditLog[]
 
   @@index([slug])
 }
@@ -43,23 +47,34 @@ model Application {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  tenantId     String
-  email        String
-  passwordHash String? // nullable for social-only users
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(uuid())
+  tenantId          String
+  email             String
+  passwordHash      String? // nullable for social-only users
+  emailVerified     Boolean  @default(false)
+  isActive          Boolean  @default(true)
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  failedLoginCount  Int      @default(0)
+  lockedUntil       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  tenant                    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  identityProviderAccounts  IdentityProviderAccount[]
-  userRoles                 UserRole[]
-  sessions                  Session[]
-  magicLinks                MagicLink[]
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  identityProviderAccounts   IdentityProviderAccount[]
+  userRoles                  UserRole[]
+  sessions                   Session[]
+  magicLinks                 MagicLink[]
+  profile                    UserProfile?
+  passwordResetTokens        PasswordResetToken[]
+  emailVerificationTokens    EmailVerificationToken[]
+  loginAttempts              LoginAttempt[]
+  createdAuditLogs           AuditLog[]                  @relation("AuditLogActor")
 
   @@unique([tenantId, email])
   @@index([tenantId])
   @@index([email])
+  @@index([lastLoginAt])
 }
 
 model IdentityProviderAccount {
@@ -166,4 +181,181 @@ model MagicLink {
 
   @@index([token])
   @@index([userId])
+}
+
+model UserProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  firstName   String?
+  lastName    String?
+  displayName String?
+  avatarUrl   String?
+  bio         String?
+  phoneNumber String?
+  timezone    String?
+  locale      String?
+  metadata    Json? // flexible JSON for custom fields
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TenantSettings {
+  id                      String   @id @default(uuid())
+  tenantId                String   @unique
+  // Auth settings
+  requireEmailVerification Boolean  @default(false)
+  allowSelfRegistration    Boolean  @default(true)
+  allowSocialLogin         Boolean  @default(true)
+  sessionDuration          Int      @default(604800) // seconds, default 7 days
+  maxFailedLogins          Int      @default(5)
+  lockoutDuration          Int      @default(900) // seconds, default 15 min
+  // Branding
+  logoUrl                  String?
+  primaryColor             String?
+  companyName              String?
+  supportEmail             String?
+  // Webhooks
+  webhookSecret            String?
+  // Rate limiting
+  rateLimit                Int      @default(100) // requests per minute
+  // Metadata
+  metadata                 Json?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  keyHash     String   @unique // hashed API key
+  prefix      String // first 8 chars for display (e.g., "idp_1234...")
+  scopes      String[] // array of permissions/scopes
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  isActive    Boolean  @default(true)
+  createdById String? // nullable for system-generated keys
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([keyHash])
+  @@index([prefix])
+}
+
+model Webhook {
+  id          String   @id @default(uuid())
+  tenantId    String
+  url         String
+  events      String[] // array of event types to subscribe to
+  secret      String? // for HMAC signature verification
+  isActive    Boolean  @default(true)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+}
+
+model WebhookDelivery {
+  id              String   @id @default(uuid())
+  webhookId       String
+  event           String // event type
+  payload         Json
+  responseStatus  Int?
+  responseBody    String?
+  attempt         Int      @default(1)
+  maxAttempts     Int      @default(3)
+  nextRetryAt     DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  createdAt       DateTime @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([createdAt])
+  @@index([nextRetryAt])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  actorId     String? // user who performed the action
+  action      String // e.g., "user.login", "role.created", "permission.granted"
+  resource    String? // resource type (e.g., "User", "Role")
+  resourceId  String? // ID of the affected resource
+  metadata    Json? // additional context
+  ipAddress   String?
+  userAgent   String?
+  status      String // "success", "failure", "pending"
+  errorMessage String?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+model LoginAttempt {
+  id         String   @id @default(uuid())
+  userId     String?
+  email      String
+  ipAddress  String
+  userAgent  String?
+  successful Boolean
+  failReason String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([email])
+  @@index([ipAddress])
+  @@index([createdAt])
 }

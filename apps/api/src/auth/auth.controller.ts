@@ -20,13 +20,17 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
-  async signup(@Body() dto: SignupDto) {
-    return this.authService.signup(dto);
+  async signup(@Body() dto: SignupDto, @Req() req: Request) {
+    const ipAddress = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.signup(dto, ipAddress, userAgent);
   }
 
   @Post('login')
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    const ipAddress = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.login(dto, ipAddress, userAgent);
   }
 
   @Post('magic-link')
@@ -63,8 +67,10 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  async logout(@Body('refreshToken') refreshToken: string) {
-    return this.authService.logout(refreshToken);
+  async logout(@Body('refreshToken') refreshToken: string, @Req() req: Request) {
+    const ipAddress = req.ip || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    return this.authService.logout(refreshToken, ipAddress, userAgent);
   }
 
   @Get('me')

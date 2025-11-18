@@ -18,6 +18,9 @@ import {
   MagicLinkRequest,
   RefreshTokenRequest,
 } from '@universal-auth-idp/auth-core';
+import { EventEmitterService } from '../lib/events/event-emitter.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { UserRegisteredEvent, UserLoggedInEvent, UserLoggedOutEvent } from '../lib/events/domain-events';
 
 @Injectable()
 export class AuthService {
@@ -26,9 +29,11 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private redisService: RedisService,
+    private eventEmitter: EventEmitterService,
+    private auditLogs: AuditLogsService,
   ) {}
 
-  async signup(dto: SignupRequest): Promise<TokenPair> {
+  async signup(dto: SignupRequest, ipAddress?: string, userAgent?: string): Promise<TokenPair> {
     // Find tenant
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug: dto.tenantSlug || 'default' },
@@ -62,20 +67,52 @@ export class AuthService {
         email: dto.email,
         passwordHash,
         isActive: true,
+        lastLoginAt: new Date(),
+        lastLoginIp: ipAddress,
       },
+    });
+
+    // Emit event
+    await this.eventEmitter.emit(
+      new UserRegisteredEvent(tenant.id, {
+        userId: user.id,
+        email: user.email,
+      }),
+    );
+
+    // Create audit log
+    await this.auditLogs.create({
+      tenantId: tenant.id,
+      actorId: user.id,
+      action: 'user.registered',
+      resource: 'User',
+      resourceId: user.id,
+      ipAddress,
+      userAgent,
+      status: 'success',
     });
 
     // Generate tokens
     return this.generateTokens(user.id, tenant.id, user.email, [], []);
   }
 
-  async login(dto: LoginRequest): Promise<TokenPair> {
+  async login(dto: LoginRequest, ipAddress?: string, userAgent?: string): Promise<TokenPair> {
     // Find tenant
     const tenant = await this.prisma.tenant.findUnique({
       where: { slug: dto.tenantSlug || 'default' },
     });
 
     if (!tenant) {
+      // Record failed attempt
+      await this.prisma.loginAttempt.create({
+        data: {
+          email: dto.email,
+          ipAddress: ipAddress || 'unknown',
+          userAgent,
+          successful: false,
+          failReason: 'Tenant not found',
+        },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -105,18 +142,110 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
+      await this.prisma.loginAttempt.create({
+        data: {
+          email: dto.email,
+          ipAddress: ipAddress || 'unknown',
+          userAgent,
+          successful: false,
+          failReason: 'User not found or inactive',
+        },
+      });
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (!user.passwordHash) {
+      await this.prisma.loginAttempt.create({
+        data: {
+          userId: user.id,
+          email: dto.email,
+          ipAddress: ipAddress || 'unknown',
+          userAgent,
+          successful: false,
+          failReason: 'Password login not available',
+        },
+      });
       throw new UnauthorizedException('Please login using social provider');
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
+      // Increment failed login count
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginCount: { increment: 1 },
+        },
+      });
+
+      await this.prisma.loginAttempt.create({
+        data: {
+          userId: user.id,
+          email: dto.email,
+          ipAddress: ipAddress || 'unknown',
+          userAgent,
+          successful: false,
+          failReason: 'Invalid password',
+        },
+      });
+
+      await this.auditLogs.create({
+        tenantId: tenant.id,
+        actorId: user.id,
+        action: 'user.login_failed',
+        resource: 'User',
+        resourceId: user.id,
+        ipAddress,
+        userAgent,
+        status: 'failure',
+        errorMessage: 'Invalid password',
+      });
+
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    // Update user last login info and reset failed count
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        lastLoginAt: new Date(),
+        lastLoginIp: ipAddress,
+        failedLoginCount: 0,
+      },
+    });
+
+    // Record successful login attempt
+    await this.prisma.loginAttempt.create({
+      data: {
+        userId: user.id,
+        email: dto.email,
+        ipAddress: ipAddress || 'unknown',
+        userAgent,
+        successful: true,
+      },
+    });
+
+    // Emit event
+    await this.eventEmitter.emit(
+      new UserLoggedInEvent(tenant.id, {
+        userId: user.id,
+        email: user.email,
+        ipAddress,
+      }),
+    );
+
+    // Create audit log
+    await this.auditLogs.create({
+      tenantId: tenant.id,
+      actorId: user.id,
+      action: 'user.logged_in',
+      resource: 'User',
+      resourceId: user.id,
+      ipAddress,
+      userAgent,
+      status: 'success',
+    });
 
     // Extract roles and permissions
     const roleKeys = user.userRoles.map((ur) => ur.role.name);
@@ -177,11 +306,13 @@ export class AuthService {
       },
     });
 
-    // TODO: Send email with magic link
-    // const magicLinkUrl = `${this.configService.get('API_URL')}/auth/magic-link/verify?token=${token}`;
-    // await this.emailService.sendMagicLink(user.email, magicLinkUrl);
+    // Send magic link via email (using notification adapter)
+    const magicLinkUrl = `${this.configService.get('API_URL') || 'http://localhost:3000'}/auth/magic-link/verify?token=${token}`;
 
-    console.log(`Magic link token for ${user.email}: ${token}`);
+    // In production, this would use a real email service via INotificationAdapter
+    // For now, log to console for development
+    console.log(`Magic link for ${user.email}: ${magicLinkUrl}`);
+    console.log(`Token: ${token}`);
 
     return { message: 'Magic link sent to your email' };
   }
@@ -391,7 +522,36 @@ export class AuthService {
     );
   }
 
-  async logout(refreshToken: string): Promise<{ message: string }> {
+  async logout(refreshToken: string, ipAddress?: string, userAgent?: string): Promise<{ message: string }> {
+    const session = await this.prisma.session.findUnique({
+      where: { refreshToken },
+      include: {
+        user: true,
+      },
+    });
+
+    if (session) {
+      // Emit event
+      await this.eventEmitter.emit(
+        new UserLoggedOutEvent(session.tenantId, {
+          userId: session.userId,
+          email: session.user.email,
+        }),
+      );
+
+      // Create audit log
+      await this.auditLogs.create({
+        tenantId: session.tenantId,
+        actorId: session.userId,
+        action: 'user.logged_out',
+        resource: 'User',
+        resourceId: session.userId,
+        ipAddress,
+        userAgent,
+        status: 'success',
+      });
+    }
+
     await this.prisma.session.deleteMany({
       where: { refreshToken },
     });
